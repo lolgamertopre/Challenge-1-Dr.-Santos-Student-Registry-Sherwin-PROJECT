@@ -1,11 +1,9 @@
-
 #include <stdio.h>
 #include <string.h>
 
 #define MAX_STUDENTS 10
 #define NAME_LEN 50
 #define MAJOR_LEN 50
-
 
 typedef struct {
     int id;
@@ -15,22 +13,23 @@ typedef struct {
     int credits;
 } Student;
 
+typedef struct {
+    Student students[MAX_STUDENTS];
+    int count;
+} Registry;
 
-Student students[MAX_STUDENTS];
-int studentCount = 0;
-
-/* ------------------- Function Prototypes ------------------- */
 void showMenu(void);
-void addStudent(void);
-void displayAllStudents(void);
-void searchById(void);
-void searchByGpaThreshold(void);
-void searchByMajor(void);
+void addStudent(Registry *reg);
+void displayAllStudents(const Registry *reg);
+void searchById(const Registry *reg);
+void searchByGpaThreshold(const Registry *reg);
+void searchByMajor(const Registry *reg);
 void printStudentHeader(void);
 void printStudentRow(Student s);
 void clearInputBuffer(void);
 
 int main(void) {
+    Registry reg = { .count = 0 };
     int choice;
 
     printf("======================================\n");
@@ -41,7 +40,6 @@ int main(void) {
         showMenu();
         printf("Enter your choice: ");
 
-        /* Guard against non-numeric input */
         if (scanf("%d", &choice) != 1) {
             printf("Invalid input. Please enter a number.\n");
             clearInputBuffer();
@@ -52,19 +50,19 @@ int main(void) {
 
         switch (choice) {
             case 1:
-                addStudent();
+                addStudent(&reg);
                 break;
             case 2:
-                displayAllStudents();
+                displayAllStudents(&reg);
                 break;
             case 3:
-                searchById();
+                searchById(&reg);
                 break;
             case 4:
-                searchByGpaThreshold();
+                searchByGpaThreshold(&reg);
                 break;
             case 5:
-                searchByMajor();
+                searchByMajor(&reg);
                 break;
             case 0:
                 printf("Goodbye, Dr. Santos!\n");
@@ -91,12 +89,11 @@ void showMenu(void) {
 
 void clearInputBuffer(void) {
     int c;
-    while ((c = getchar()) != '\n' && c != EOF) {
-        /* discard */
-    }
+    while ((c = getchar()) != '\n' && c != EOF);
 }
-void addStudent(void) {
-    if (studentCount >= MAX_STUDENTS) {
+
+void addStudent(Registry *reg) {
+    if (reg->count >= MAX_STUDENTS) {
         printf("Cannot add more students. Registry is full (max %d).\n", MAX_STUDENTS);
         return;
     }
@@ -105,13 +102,18 @@ void addStudent(void) {
 
     printf("\n-- Add New Student --\n");
 
-    printf("Enter Student ID: ");
-    scanf("%d", &newStudent.id);
-    clearInputBuffer();
+    while (1) {
+        printf("Enter Student ID: ");
+        if (scanf("%d", &newStudent.id) == 1 && newStudent.id > 0) {
+            clearInputBuffer();
+            break;
+        }
+        printf("Invalid ID. Please enter a positive integer.\n");
+        clearInputBuffer();
+    }
 
-    /* Basic duplicate ID check */
-    for (int i = 0; i < studentCount; i++) {
-        if (students[i].id == newStudent.id) {
+    for (int i = 0; i < reg->count; i++) {
+        if (reg->students[i].id == newStudent.id) {
             printf("A student with ID %d already exists. Student not added.\n", newStudent.id);
             return;
         }
@@ -119,58 +121,67 @@ void addStudent(void) {
 
     printf("Enter Full Name: ");
     fgets(newStudent.name, NAME_LEN, stdin);
-    newStudent.name[strcspn(newStudent.name, "\n")] = '\0'; /* strip newline */
+    newStudent.name[strcspn(newStudent.name, "\n")] = '\0';
 
     printf("Enter Major: ");
     fgets(newStudent.major, MAJOR_LEN, stdin);
     newStudent.major[strcspn(newStudent.major, "\n")] = '\0';
 
-    printf("Enter GPA (0.0 - 4.0): ");
-    scanf("%f", &newStudent.gpa);
-    clearInputBuffer();
+    while (1) {
+        printf("Enter GPA (0.0 - 4.0): ");
+        if (scanf("%f", &newStudent.gpa) == 1 && newStudent.gpa >= 0.0f && newStudent.gpa <= 4.0f) {
+            clearInputBuffer();
+            break;
+        }
+        printf("Invalid entry. ");
+        clearInputBuffer();
+    }
 
-    printf("Enter Credits Taken: ");
-    scanf("%d", &newStudent.credits);
-    clearInputBuffer();
+    while (1) {
+        printf("Enter Credits Taken: ");
+        if (scanf("%d", &newStudent.credits) == 1 && newStudent.credits >= 0) {
+            clearInputBuffer();
+            break;
+        }
+        printf("Invalid entry. ");
+        clearInputBuffer();
+    }
 
-    students[studentCount] = newStudent;
-    studentCount++;
+    reg->students[reg->count] = newStudent;
+    reg->count++;
 
     printf("Student '%s' added successfully! (%d/%d students in registry)\n",
-           newStudent.name, studentCount, MAX_STUDENTS);
+           newStudent.name, reg->count, MAX_STUDENTS);
 }
-
 
 void printStudentHeader(void) {
     printf("%-6s %-25s %-20s %-6s %-8s\n", "ID", "Name", "Major", "GPA", "Credits");
     printf("--------------------------------------------------------------------\n");
 }
 
-/* Prints one student's data as a formatted row. */
 void printStudentRow(Student s) {
     printf("%-6d %-25s %-20s %-6.2f %-8d\n", s.id, s.name, s.major, s.gpa, s.credits);
 }
 
-void displayAllStudents(void) {
-    printf("\n-- All Students (%d total) --\n", studentCount);
+void displayAllStudents(const Registry *reg) {
+    printf("\n-- All Students (%d total) --\n", reg->count);
 
-    if (studentCount == 0) {
+    if (reg->count == 0) {
         printf("No students in the registry yet.\n");
         return;
     }
 
     printStudentHeader();
-    for (int i = 0; i < studentCount; i++) {
-        printStudentRow(students[i]);
+    for (int i = 0; i < reg->count; i++) {
+        printStudentRow(reg->students[i]);
     }
 }
 
-
-void searchById(void) {
+void searchById(const Registry *reg) {
     int searchId;
     int found = 0;
 
-    if (studentCount == 0) {
+    if (reg->count == 0) {
         printf("No students in the registry yet.\n");
         return;
     }
@@ -179,14 +190,14 @@ void searchById(void) {
     scanf("%d", &searchId);
     clearInputBuffer();
 
-    for (int i = 0; i < studentCount; i++) {
-        if (students[i].id == searchId) {
+    for (int i = 0; i < reg->count; i++) {
+        if (reg->students[i].id == searchId) {
             printf("\n-- Student Found --\n");
-            printf("ID:      %d\n", students[i].id);
-            printf("Name:    %s\n", students[i].name);
-            printf("Major:   %s\n", students[i].major);
-            printf("GPA:     %.2f\n", students[i].gpa);
-            printf("Credits: %d\n", students[i].credits);
+            printf("ID:      %d\n", reg->students[i].id);
+            printf("Name:    %s\n", reg->students[i].name);
+            printf("Major:   %s\n", reg->students[i].major);
+            printf("GPA:     %.2f\n", reg->students[i].gpa);
+            printf("Credits: %d\n", reg->students[i].credits);
             found = 1;
             break;
         }
@@ -197,12 +208,11 @@ void searchById(void) {
     }
 }
 
-
-void searchByGpaThreshold(void) {
+void searchByGpaThreshold(const Registry *reg) {
     float threshold;
     int matches = 0;
 
-    if (studentCount == 0) {
+    if (reg->count == 0) {
         printf("No students in the registry yet.\n");
         return;
     }
@@ -214,9 +224,9 @@ void searchByGpaThreshold(void) {
     printf("\n-- Students with GPA >= %.2f --\n", threshold);
     printStudentHeader();
 
-    for (int i = 0; i < studentCount; i++) {
-        if (students[i].gpa >= threshold) {
-            printStudentRow(students[i]);
+    for (int i = 0; i < reg->count; i++) {
+        if (reg->students[i].gpa >= threshold) {
+            printStudentRow(reg->students[i]);
             matches++;
         }
     }
@@ -229,35 +239,13 @@ void searchByGpaThreshold(void) {
     }
 }
 
-
-void searchByMajor(void) {
+void searchByMajor(const Registry *reg) {
     char searchMajor[MAJOR_LEN];
     int matches = 0;
 
-    if (studentCount == 0) {
+    if (reg->count == 0) {
         printf("No students in the registry yet.\n");
         return;
     }
 
     printf("Enter major to search for: ");
-    fgets(searchMajor, MAJOR_LEN, stdin);
-    searchMajor[strcspn(searchMajor, "\n")] = '\0';
-
-    printf("\n-- Students in '%s' --\n", searchMajor);
-    printStudentHeader();
-
-    for (int i = 0; i < studentCount; i++) {
-        /* Case-sensitive exact match on the major string */
-        if (strcmp(students[i].major, searchMajor) == 0) {
-            printStudentRow(students[i]);
-            matches++;
-        }
-    }
-
-    if (matches == 0) {
-        printf("(No students found in this major.)\n");
-    } else {
-        printf("--------------------------------------------------------------------\n");
-        printf("Total students in '%s': %d\n", searchMajor, matches);
-    }
-}
