@@ -249,3 +249,23 @@ void searchByMajor(const Registry *reg) {
     }
 
     printf("Enter major to search for: ");
+    fgets(searchMajor, MAJOR_LEN, stdin);
+    searchMajor[strcspn(searchMajor, "\n")] = '\0';
+
+    printf("\n-- Students majoring in '%s' --\n", searchMajor);
+    printStudentHeader();
+
+    for (int i = 0; i < reg->count; i++) {
+        if (strstr(reg->students[i].major, searchMajor) != NULL) {
+            printStudentRow(reg->students[i]);
+            matches++;
+        }
+    }
+
+    if (matches == 0) {
+        printf("(No students found with this major.)\n");
+    } else {
+        printf("--------------------------------------------------------------------\n");
+        printf("%d student(s) found.\n", matches);
+    }
+}
