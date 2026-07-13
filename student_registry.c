@@ -1,11 +1,13 @@
-
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 
 #define MAX_STUDENTS 10
 #define NAME_LEN 50
 #define MAJOR_LEN 50
-
+#define MIN_GPA 0.0f
+#define MAX_GPA 4.0f
 
 typedef struct {
     int id;
@@ -14,7 +16,6 @@ typedef struct {
     float gpa;
     int credits;
 } Student;
-
 
 Student students[MAX_STUDENTS];
 int studentCount = 0;
@@ -26,9 +27,14 @@ void displayAllStudents(void);
 void searchById(void);
 void searchByGpaThreshold(void);
 void searchByMajor(void);
+void showStatistics(void);
 void printStudentHeader(void);
 void printStudentRow(Student s);
 void clearInputBuffer(void);
+int readInt(const char *prompt, int min, int allowMin, int max, int allowMax);
+float readFloat(const char *prompt, float min, float max);
+void readLine(const char *prompt, char *buffer, int len);
+int strcaseequal(const char *a, const char *b);
 
 int main(void) {
     int choice;
@@ -41,8 +47,12 @@ int main(void) {
         showMenu();
         printf("Enter your choice: ");
 
-        /* Guard against non-numeric input */
-        if (scanf("%d", &choice) != 1) {
+        int result = scanf("%d", &choice);
+        if (result == EOF) {
+            printf("\nInput stream closed unexpectedly. Exiting.\n");
+            break;
+        }
+        if (result != 1) {
             printf("Invalid input. Please enter a number.\n");
             clearInputBuffer();
             choice = -1;
@@ -51,26 +61,14 @@ int main(void) {
         clearInputBuffer();
 
         switch (choice) {
-            case 1:
-                addStudent();
-                break;
-            case 2:
-                displayAllStudents();
-                break;
-            case 3:
-                searchById();
-                break;
-            case 4:
-                searchByGpaThreshold();
-                break;
-            case 5:
-                searchByMajor();
-                break;
-            case 0:
-                printf("Goodbye, Dr. Santos!\n");
-                break;
-            default:
-                printf("Invalid choice. Please try again.\n");
+            case 1: addStudent();          break;
+            case 2: displayAllStudents();  break;
+            case 3: searchById();          break;
+            case 4: searchByGpaThreshold();break;
+            case 5: searchByMajor();       break;
+            case 6: showStatistics();      break;
+            case 0: printf("Goodbye, Dr. Santos!\n"); break;
+            default: printf("Invalid choice. Please try again.\n");
         }
 
     } while (choice != 0);
@@ -85,6 +83,7 @@ void showMenu(void) {
     printf("3. Search for student by ID\n");
     printf("4. Find students with GPA >= threshold\n");
     printf("5. Find students by major (with count)\n");
+    printf("6. Show class statistics\n");
     printf("0. Exit\n");
     printf("--------------------------------------\n");
 }
@@ -95,6 +94,91 @@ void clearInputBuffer(void) {
         /* discard */
     }
 }
+
+/* Case-insensitive string equality helper (avoids relying on non-standard strcasecmp). */
+int strcaseequal(const char *a, const char *b) {
+    while (*a && *b) {
+        if (tolower((unsigned char)*a) != tolower((unsigned char)*b)) return 0;
+        a++; b++;
+    }
+    return *a == '\0' && *b == '\0';
+}
+
+/*
+ * Reads an integer with a validated range, re-prompting on bad input.
+ * If allowMin/allowMax is 0, that bound is not enforced (pass anything for min/max then).
+ */
+int readInt(const char *prompt, int min, int allowMin, int max, int allowMax) {
+    int value;
+    for (;;) {
+        printf("%s", prompt);
+        int result = scanf("%d", &value);
+        if (result == EOF) {
+            printf("\nInput stream closed unexpectedly. Exiting.\n");
+            exit(1);
+        }
+        if (result != 1) {
+            printf("Invalid input. Please enter a whole number.\n");
+            clearInputBuffer();
+            continue;
+        }
+        clearInputBuffer();
+
+        if (allowMin && value < min) {
+            printf("Value must be at least %d.\n", min);
+            continue;
+        }
+        if (allowMax && value > max) {
+            printf("Value must be at most %d.\n", max);
+            continue;
+        }
+        return value;
+    }
+}
+
+/* Reads a float within [min, max], re-prompting on bad input. */
+float readFloat(const char *prompt, float min, float max) {
+    float value;
+    for (;;) {
+        printf("%s", prompt);
+        int result = scanf("%f", &value);
+        if (result == EOF) {
+            printf("\nInput stream closed unexpectedly. Exiting.\n");
+            exit(1);
+        }
+        if (result != 1) {
+            printf("Invalid input. Please enter a number.\n");
+            clearInputBuffer();
+            continue;
+        }
+        clearInputBuffer();
+
+        if (value < min || value > max) {
+            printf("Value must be between %.2f and %.2f.\n", min, max);
+            continue;
+        }
+        return value;
+    }
+}
+
+/* Reads a non-empty line of text into buffer, stripping the trailing newline. */
+void readLine(const char *prompt, char *buffer, int len) {
+    for (;;) {
+        printf("%s", prompt);
+        if (!fgets(buffer, len, stdin)) {
+            buffer[0] = '\0';
+            return;
+        }
+        buffer[strcspn(buffer, "\n")] = '\0';
+
+        if (buffer[0] == '\0') {
+            printf("This field cannot be empty. Please try again.\n");
+            continue;
+        }
+        return;
+    }
+}
+
 void addStudent(void) {
     if (studentCount >= MAX_STUDENTS) {
         printf("Cannot add more students. Registry is full (max %d).\n", MAX_STUDENTS);
@@ -105,9 +189,7 @@ void addStudent(void) {
 
     printf("\n-- Add New Student --\n");
 
-    printf("Enter Student ID: ");
-    scanf("%d", &newStudent.id);
-    clearInputBuffer();
+    newStudent.id = readInt("Enter Student ID: ", 1, 1, 0, 0);
 
     /* Basic duplicate ID check */
     for (int i = 0; i < studentCount; i++) {
@@ -117,21 +199,10 @@ void addStudent(void) {
         }
     }
 
-    printf("Enter Full Name: ");
-    fgets(newStudent.name, NAME_LEN, stdin);
-    newStudent.name[strcspn(newStudent.name, "\n")] = '\0'; /* strip newline */
-
-    printf("Enter Major: ");
-    fgets(newStudent.major, MAJOR_LEN, stdin);
-    newStudent.major[strcspn(newStudent.major, "\n")] = '\0';
-
-    printf("Enter GPA (0.0 - 4.0): ");
-    scanf("%f", &newStudent.gpa);
-    clearInputBuffer();
-
-    printf("Enter Credits Taken: ");
-    scanf("%d", &newStudent.credits);
-    clearInputBuffer();
+    readLine("Enter Full Name: ", newStudent.name, NAME_LEN);
+    readLine("Enter Major: ", newStudent.major, MAJOR_LEN);
+    newStudent.gpa = readFloat("Enter GPA (0.0 - 4.0): ", MIN_GPA, MAX_GPA);
+    newStudent.credits = readInt("Enter Credits Taken: ", 0, 1, 0, 0);
 
     students[studentCount] = newStudent;
     studentCount++;
@@ -140,13 +211,11 @@ void addStudent(void) {
            newStudent.name, studentCount, MAX_STUDENTS);
 }
 
-
 void printStudentHeader(void) {
     printf("%-6s %-25s %-20s %-6s %-8s\n", "ID", "Name", "Major", "GPA", "Credits");
     printf("--------------------------------------------------------------------\n");
 }
 
-/* Prints one student's data as a formatted row. */
 void printStudentRow(Student s) {
     printf("%-6d %-25s %-20s %-6.2f %-8d\n", s.id, s.name, s.major, s.gpa, s.credits);
 }
@@ -165,9 +234,7 @@ void displayAllStudents(void) {
     }
 }
 
-
 void searchById(void) {
-    int searchId;
     int found = 0;
 
     if (studentCount == 0) {
@@ -175,9 +242,7 @@ void searchById(void) {
         return;
     }
 
-    printf("Enter Student ID to search: ");
-    scanf("%d", &searchId);
-    clearInputBuffer();
+    int searchId = readInt("Enter Student ID to search: ", 1, 1, 0, 0);
 
     for (int i = 0; i < studentCount; i++) {
         if (students[i].id == searchId) {
@@ -197,9 +262,7 @@ void searchById(void) {
     }
 }
 
-
 void searchByGpaThreshold(void) {
-    float threshold;
     int matches = 0;
 
     if (studentCount == 0) {
@@ -207,9 +270,7 @@ void searchByGpaThreshold(void) {
         return;
     }
 
-    printf("Enter minimum GPA threshold: ");
-    scanf("%f", &threshold);
-    clearInputBuffer();
+    float threshold = readFloat("Enter minimum GPA threshold: ", MIN_GPA, MAX_GPA);
 
     printf("\n-- Students with GPA >= %.2f --\n", threshold);
     printStudentHeader();
@@ -229,7 +290,6 @@ void searchByGpaThreshold(void) {
     }
 }
 
-
 void searchByMajor(void) {
     char searchMajor[MAJOR_LEN];
     int matches = 0;
@@ -239,16 +299,14 @@ void searchByMajor(void) {
         return;
     }
 
-    printf("Enter major to search for: ");
-    fgets(searchMajor, MAJOR_LEN, stdin);
-    searchMajor[strcspn(searchMajor, "\n")] = '\0';
+    readLine("Enter major to search for: ", searchMajor, MAJOR_LEN);
 
     printf("\n-- Students in '%s' --\n", searchMajor);
     printStudentHeader();
 
+    /* Case-insensitive match so "computer science" finds "Computer Science" */
     for (int i = 0; i < studentCount; i++) {
-        /* Case-sensitive exact match on the major string */
-        if (strcmp(students[i].major, searchMajor) == 0) {
+        if (strcaseequal(students[i].major, searchMajor)) {
             printStudentRow(students[i]);
             matches++;
         }
@@ -260,4 +318,31 @@ void searchByMajor(void) {
         printf("--------------------------------------------------------------------\n");
         printf("Total students in '%s': %d\n", searchMajor, matches);
     }
+}
+
+/* New: quick class-wide statistics (average GPA, highest/lowest GPA, total credits). */
+void showStatistics(void) {
+    if (studentCount == 0) {
+        printf("No students in the registry yet.\n");
+        return;
+    }
+
+    float sumGpa = 0.0f;
+    int totalCredits = 0;
+    Student *highest = &students[0];
+    Student *lowest = &students[0];
+
+    for (int i = 0; i < studentCount; i++) {
+        sumGpa += students[i].gpa;
+        totalCredits += students[i].credits;
+        if (students[i].gpa > highest->gpa) highest = &students[i];
+        if (students[i].gpa < lowest->gpa)  lowest = &students[i];
+    }
+
+    printf("\n-- Class Statistics --\n");
+    printf("Total students:   %d\n", studentCount);
+    printf("Average GPA:      %.2f\n", sumGpa / studentCount);
+    printf("Total credits:    %d\n", totalCredits);
+    printf("Highest GPA:      %.2f (%s)\n", highest->gpa, highest->name);
+    printf("Lowest GPA:       %.2f (%s)\n", lowest->gpa, lowest->name);
 }
